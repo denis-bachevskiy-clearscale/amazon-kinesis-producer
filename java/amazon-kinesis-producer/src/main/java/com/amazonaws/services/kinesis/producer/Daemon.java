@@ -145,14 +145,16 @@ public class Daemon {
      *            Pipe into which we write messages to the child.
      * @param handler
      *            Message handler.
+     * @param config
+     *            Kinesis Producer configuration.
      */
-    protected Daemon(File inPipe, File outPipe, MessageHandler handler) {
+    protected Daemon(File inPipe, File outPipe, MessageHandler handler, KinesisProducerConfiguration config) {
         workingDir = ".";
         pathToExecutable = null;
         this.inPipe = inPipe;
         this.outPipe = outPipe;
         this.handler = handler;
-        this.config = null;
+        this.config = config;
         this.environmentVariables = null;
         
         try {

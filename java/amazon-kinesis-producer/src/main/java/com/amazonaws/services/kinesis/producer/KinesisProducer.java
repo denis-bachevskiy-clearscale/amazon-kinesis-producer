@@ -105,6 +105,8 @@ public class KinesisProducer implements IKinesisProducer {
             .setNameFormat("kpl-timeout-future-" + CALLBACK_COMPLETION_POOL_NUMBER.getAndIncrement() + "-thread-%d")
             .build());
 
+    private final File inPipe;
+    private final File outPipe;
 
     private static class SettableFutureTrackerComparator implements Comparator<SettableFutureTracker>
     {
@@ -205,8 +207,7 @@ public class KinesisProducer implements IKinesisProducer {
             oldestFutureTrackerHeap.clear();
 
             if (processFailureBehavior == ProcessFailureBehavior.AutoRestart && !destroyed) {
-                log.info("Restarting native producer process.");
-                child = new Daemon(pathToExecutable, new MessageHandler(), pathToTmpDir, config, env);
+                restartDaemon();
             } else {
                 // Only restart child if it's not an irrecoverable error, and if
                 // there has been some time (3 seconds) between the last child
@@ -214,11 +215,21 @@ public class KinesisProducer implements IKinesisProducer {
                 // going to abort to avoid going into a loop.
                 if (!(t instanceof IrrecoverableError) && System.nanoTime() - lastChild > 3e9) {
                     lastChild = System.nanoTime();
-                    child = new Daemon(pathToExecutable, new MessageHandler(), pathToTmpDir, config, env);
+                    restartDaemon();
                 }
             }
         }
-  
+
+        private void restartDaemon() {
+            if (child.getPathToExecutable() == null) {
+                log.info("Recreating daemon to use same pipes.");
+                child = new Daemon(inPipe, outPipe, new MessageHandler(), config);
+            } else {
+                log.info("Restarting native producer process.");
+                child = new Daemon(pathToExecutable, new MessageHandler(), pathToTmpDir, config, env);
+            }
+        }
+
         /**
          * Matches up the incoming PutRecordResult to an outstanding future, and
          * completes that future with the appropriate data.
@@ -293,6 +304,8 @@ public class KinesisProducer implements IKinesisProducer {
      * @see KinesisProducerConfiguration
      */
     public KinesisProducer(KinesisProducerConfiguration config) {
+        this.inPipe = null;
+        this.outPipe = null;
         this.config = config;
         String caPath = config.getCaCertPath();
         String caDirectory = extractBinaries();
@@ -342,11 +355,14 @@ public class KinesisProducer implements IKinesisProducer {
      * 
      * @param inPipe
      * @param outPipe
+     * @param config
      */
-    protected KinesisProducer(File inPipe, File outPipe) {
-        this.config = null;
+    public KinesisProducer(File inPipe, File outPipe, KinesisProducerConfiguration config) {
+        this.inPipe = inPipe;
+        this.outPipe = outPipe;
+        this.config = config;
         this.env = null;
-        child = new Daemon(inPipe, outPipe, new MessageHandler());
+        child = new Daemon(inPipe, outPipe, new MessageHandler(), config);
     }
     
     /**
