@@ -157,12 +157,17 @@ public class Daemon {
         this.config = config;
         this.environmentVariables = null;
         
-        try {
-            connectToChild();
-            startLoops();
-        } catch (IOException e) {
-            fatalError("Could not connect to child", e, false);
-        }
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    connectToChild();
+                    startLoops();
+                } catch (IOException e) {
+                    fatalError("Could not connect to child", e, false);
+                }
+            }
+        });
     }
     
     /**
